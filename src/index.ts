@@ -1,11 +1,11 @@
-import { Plugin } from 'vite';
+// import type { Plugin } from 'vite';
 
 type ResolveModulePreloadDependenciesFn = (filename: string, deps: string[], context: {
   hostId: string;
   hostType: 'html' | 'js';
 }) => string[];
 
-export interface PreRenderedChunk {
+interface PreRenderedChunk {
 	exports: string[];
 	facadeModuleId: string | null;
 	isDynamicEntry: boolean;
@@ -16,7 +16,7 @@ export interface PreRenderedChunk {
 	type: 'chunk';
 }
 
-export interface RenderedChunk extends PreRenderedChunk {
+interface RenderedChunk extends PreRenderedChunk {
 	dynamicImports: string[];
 	fileName: string;
 	implicitlyLoadedBefore: string[];
@@ -30,7 +30,7 @@ export interface RenderedChunk extends PreRenderedChunk {
 	referencedFiles: string[];
 }
 
-export interface OutputChunk extends RenderedChunk {
+interface OutputChunk extends RenderedChunk {
 	code: string;
 	map: any;
 	sourcemapFileName: string | null;
@@ -38,7 +38,7 @@ export interface OutputChunk extends RenderedChunk {
 }
 
 
-export default function staticFilehashPlugin(): Plugin {
+export function staticFilehashPlugin(): any {
   const localImportMap: { [key: string]: string } = {};
   const invertedImportMap: { [key: string]: string } = {};
   const invertedChunkMap: { [key: string]: OutputChunk } = {};
@@ -97,7 +97,7 @@ export default function staticFilehashPlugin(): Plugin {
 
   return {
     name: 'vite:static-filehash',
-    config(conf) {
+    config(conf: any) {
       if (!conf.build) {
         conf.build = {};
       }
@@ -112,7 +112,7 @@ export default function staticFilehashPlugin(): Plugin {
       } else {
         conf.experimental = {};
       }
-      conf.experimental.renderBuiltUrl = (filename, type) => {
+      conf.experimental.renderBuiltUrl = (filename: any, type: any) => {
         if (filename.startsWith('window.fileHashes')) {
           return { runtime: filename }
         }
@@ -124,20 +124,20 @@ export default function staticFilehashPlugin(): Plugin {
         }
       }
     },
-    configResolved(config) {
+    configResolved(config: any) {
       base = config.base;
       assetsDir = config.build.assetsDir;
     },
-    renderChunk(code, chunk) {
+    renderChunk(code: any, chunk: any) {
 
-      let result = code.replace(/import\s+.*?\s+from\s+['"](.+?)['"]/g, (match, filePath) => {
+      let result = code.replace(/import\s+.*?\s+from\s+['"](.+?)['"]/g, (match: any, filePath: any) => {
         // 去掉路径和扩展名，提取文件名
         const fileName = filePath.replace(/^.*[\\/]/, '').replace(/\.[^/.]+$/, '').replace(/-!~\{.*?\}~/, '');
         // 将 import 路径替换为文件名
         return match.replace(filePath, fileName);
       });
 
-      result = result.replace(/import\((['"`])(.+?)\1\)/g, (match, p1, p2: string) => {
+      result = result.replace(/import\((['"`])(.+?)\1\)/g, (match: any, p1: any, p2: string) => {
         // 对路径进行动态处理或替换
         const fileName = p2.replace(/^.*[\\/]/, '').replace(/\.[^/.]+$/, '').replace(/-!~\{.*?\}~/, '');
         return match.replace(p2, fileName);
@@ -145,7 +145,7 @@ export default function staticFilehashPlugin(): Plugin {
 
       return result;
     },
-    generateBundle(options, bundle) {
+    generateBundle(options: any, bundle: any) {
       Object.keys(bundle).forEach(id => {
         const chunk = bundle[id];
         if (chunk.type === 'chunk') {
@@ -166,7 +166,7 @@ export default function staticFilehashPlugin(): Plugin {
       });
 
     },
-    transformIndexHtml(html, ctx) {
+    transformIndexHtml(html: any, ctx: any) {
       const fileHashes = Object.keys(localImportMap).filter(key => !key.endsWith('.css')).reduce((acc, key) => {
         (acc as any)[key] = base + localImportMap[key];
         return acc;
