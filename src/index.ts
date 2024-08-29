@@ -45,9 +45,8 @@ export default function staticFilehashPlugin(): Plugin {
   let base = '';
   let assetsDir = '';
   const resolevefunction: ResolveModulePreloadDependenciesFn = (filename, deps, context) => {
-    console.log(filename, deps, context);
+
     const name = filename.substring(assetsDir.length + 1);
-    console.log('name', name);
     const realyfilename = localImportMap[name];
     let chunk = invertedChunkMap[realyfilename];
     if (!chunk) {
@@ -59,32 +58,38 @@ export default function staticFilehashPlugin(): Plugin {
       if (isEntry) {
         return localDeps;
       }
-      // console.log('chunk', chunk);
+
       const deps: Set<string> = new Set()
       const ownerFilename = chunk.fileName;
       const analyzed = new Set();
       const addDeps = (filename: string) => {
-        // if (filename === ownerFilename) return
+
         if (analyzed.has(filename)) return
         analyzed.add(filename)
         const chunk = invertedChunkMap[filename]
-        console.log('filename', filename);
+
         const chunkName = invertedImportMap[chunk.fileName.substring(assetsDir.length + 1)]
         if (chunk) {
-          // deps.add(chunk.fileName)
+
           if (!isEntry) {
             deps.add(`window.fileHashes['${chunkName}']`)
           } else {
             deps.add(chunk.fileName);
           }
-          console.log('imports', chunk.imports);
+
           if (chunk.type === 'chunk') {
-            chunk.imports.forEach(addDeps)
+            chunk.imports.forEach(addDeps);
+            (chunk as any).viteMetadata!.importedCss.forEach((file: string) => {
+              const cssfilename: string = file.substring(assetsDir.length + 1);
+              const cssname = cssfilename.substring(0, cssfilename.lastIndexOf('-'))
+              const key = `${cssname}.css`;
+              deps.add(`window.fileHashes['${key}']`);
+            })
           }
         }
       }
       addDeps(ownerFilename)
-      console.log('deps', Array.from(deps));
+
       return Array.from(deps);
     }
     return [];
@@ -108,26 +113,26 @@ export default function staticFilehashPlugin(): Plugin {
         conf.experimental = {};
       }
       conf.experimental.renderBuiltUrl = (filename, type) => {
-        // console.log(filename, type);
         if (filename.startsWith('window.fileHashes')) {
           return { runtime: filename }
+        }
+        if (type.hostType === 'css') {
+          return { relative: true }
         }
         if (oldRenderBuiltUrl) {
           return oldRenderBuiltUrl(filename, type);
         }
-        // return filename;
       }
     },
     configResolved(config) {
       base = config.base;
       assetsDir = config.build.assetsDir;
     },
-    renderChunk(code) {
+    renderChunk(code, chunk) {
 
       let result = code.replace(/import\s+.*?\s+from\s+['"](.+?)['"]/g, (match, filePath) => {
         // 去掉路径和扩展名，提取文件名
         const fileName = filePath.replace(/^.*[\\/]/, '').replace(/\.[^/.]+$/, '').replace(/-!~\{.*?\}~/, '');
-        
         // 将 import 路径替换为文件名
         return match.replace(filePath, fileName);
       });
@@ -136,53 +141,33 @@ export default function staticFilehashPlugin(): Plugin {
         // 对路径进行动态处理或替换
         const fileName = p2.replace(/^.*[\\/]/, '').replace(/\.[^/.]+$/, '').replace(/-!~\{.*?\}~/, '');
         return match.replace(p2, fileName);
-        // let lastname = p2;
-        // if (lastname.startsWith('./')) {
-        //   lastname = lastname.substring(2);
-        // }
-        // const chunkname = invertedImportMap[lastname];
-        // console.log('lastname', lastname, chunkname, p2);
-        // return `import("${chunkname}")`
       });
-
-      // if (code.includes('import(')) {
-      //   console.log('code', code);
-      // }
 
       return result;
     },
     generateBundle(options, bundle) {
       Object.keys(bundle).forEach(id => {
         const chunk = bundle[id];
-        console.log(chunk.fileName, chunk.name, chunk.type);
         if (chunk.type === 'chunk') {
           localImportMap[chunk.name!] = chunk.fileName;
           const lastname = chunk.fileName.substring(assetsDir.length + 1)
-          // console.log('lastname1', lastname);
           invertedImportMap[lastname] = chunk.name!;
           invertedChunkMap[chunk.fileName] = chunk;
+
+          chunk.viteMetadata!.importedCss.forEach((file: string) => {
+            const cssfilename: string = file.substring(assetsDir.length + 1);
+            const cssname = cssfilename.substring(0, cssfilename.lastIndexOf('-'))
+            const key = `${cssname}.css`;
+            localImportMap[key] = file;
+          })
+        } else if (chunk.type === 'asset') {
+
         }
       });
 
-      // for (const file in bundle) {
-      //   const chunk = bundle[file];
-      //   if (chunk.type === 'chunk') {
-      //     const result = chunk.code.replace(/import\((['"`])(.+?)\1\)/g, (match, p1, p2: string) => {
-      //       // 对路径进行动态处理或替换
-      //       let lastname = p2;
-      //       if (lastname.startsWith('./')) {
-      //         lastname = lastname.substring(2);
-      //       }
-      //       const chunkname = invertedImportMap[lastname];
-      //       console.log('lastname', lastname, chunkname, p2);
-      //       return `import("${chunkname}")`
-      //     });
-      //     chunk.code = result;
-      //   }
-      // }
     },
     transformIndexHtml(html, ctx) {
-      const fileHashes = Object.keys(localImportMap).reduce((acc, key) => {
+      const fileHashes = Object.keys(localImportMap).filter(key => !key.endsWith('.css')).reduce((acc, key) => {
         (acc as any)[key] = base + localImportMap[key];
         return acc;
       }, {});
@@ -201,7 +186,7 @@ export default function staticFilehashPlugin(): Plugin {
       const scriptTag = `<script>
         window.fileHashes = ${JSON.stringify(fileHashes2, undefined, 4)};
       </script>`;
-      // console.log(html);
+      console.log(html);
       return html.replace('<head>', `<head>
         ${scriptTag}
         ${importmapTag}

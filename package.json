@@ -1,7 +1,7 @@
 {
-  "name": "vite-plugin-dynamic-chunk",
+  "name": "vite-plugin-static-filehash",
   "version": "0.0.1",
-  "description": "A vite plugin for dynamic split chunk",
+  "description": "A Vite plugin that tries to keep the hash of a single file unchanged",
   "type": "module",
   "exports": {
     ".": {
@@ -20,12 +20,12 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
-    "url": "https://github.com/MrQinYQ/vite-plugin-dynamic-chunk.git"
+    "url": "https://github.com/MrQinYQ/vite-plugin-static-filehash.git"
   },
   "keywords": [
     "vite",
-    "dynamic chunk",
-    "chunk",
+    "hash",
+    "file",
     "vite-plugin"
   ],
   "author": "qinyequan",
