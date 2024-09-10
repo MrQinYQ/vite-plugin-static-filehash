@@ -1,4 +1,4 @@
-// import type { Plugin } from 'vite';
+import type { Plugin } from 'vite';
 
 type ResolveModulePreloadDependenciesFn = (filename: string, deps: string[], context: {
   hostId: string;
@@ -38,7 +38,7 @@ interface OutputChunk extends RenderedChunk {
 }
 
 
-export function staticFilehashPlugin(): any {
+export function staticFilehashPlugin(): Plugin {
   const localImportMap: { [key: string]: string } = {};
   const invertedImportMap: { [key: string]: string } = {};
   const invertedChunkMap: { [key: string]: OutputChunk } = {};
@@ -97,7 +97,7 @@ export function staticFilehashPlugin(): any {
 
   return {
     name: 'vite:static-filehash',
-    config(conf: any) {
+    config(conf) {
       if (!conf.build) {
         conf.build = {};
       }
@@ -112,7 +112,7 @@ export function staticFilehashPlugin(): any {
       } else {
         conf.experimental = {};
       }
-      conf.experimental.renderBuiltUrl = (filename: any, type: any) => {
+      conf.experimental.renderBuiltUrl = (filename, type) => {
         if (filename.startsWith('window.fileHashes')) {
           return { runtime: filename }
         }
@@ -124,20 +124,20 @@ export function staticFilehashPlugin(): any {
         }
       }
     },
-    configResolved(config: any) {
+    configResolved(config) {
       base = config.base;
       assetsDir = config.build.assetsDir;
     },
-    renderChunk(code: any, chunk: any) {
+    renderChunk(code, chunk) {
 
-      let result = code.replace(/import\s+.*?\s+from\s+['"](.+?)['"]/g, (match: any, filePath: any) => {
+      let result = code.replace(/import\s+.*?\s+from\s+['"](.+?)['"]/g, (match, filePath) => {
         // 去掉路径和扩展名，提取文件名
         const fileName = filePath.replace(/^.*[\\/]/, '').replace(/\.[^/.]+$/, '').replace(/-!~\{.*?\}~/, '');
         // 将 import 路径替换为文件名
         return match.replace(filePath, fileName);
       });
 
-      result = result.replace(/import\((['"`])(.+?)\1\)/g, (match: any, p1: any, p2: string) => {
+      result = result.replace(/import\((['"`])(.+?)\1\)/g, (match, p1, p2) => {
         // 对路径进行动态处理或替换
         const fileName = p2.replace(/^.*[\\/]/, '').replace(/\.[^/.]+$/, '').replace(/-!~\{.*?\}~/, '');
         return match.replace(p2, fileName);
@@ -145,7 +145,7 @@ export function staticFilehashPlugin(): any {
 
       return result;
     },
-    generateBundle(options: any, bundle: any) {
+    generateBundle(options, bundle) {
       Object.keys(bundle).forEach(id => {
         const chunk = bundle[id];
         if (chunk.type === 'chunk') {
@@ -166,7 +166,7 @@ export function staticFilehashPlugin(): any {
       });
 
     },
-    transformIndexHtml(html: any, ctx: any) {
+    transformIndexHtml(html, ctx) {
       const fileHashes = Object.keys(localImportMap).filter(key => !key.endsWith('.css')).reduce((acc, key) => {
         (acc as any)[key] = base + localImportMap[key];
         return acc;
@@ -186,7 +186,7 @@ export function staticFilehashPlugin(): any {
       const scriptTag = `<script>
         window.fileHashes = ${JSON.stringify(fileHashes2, undefined, 4)};
       </script>`;
-      console.log(html);
+
       return html.replace('<head>', `<head>
         ${scriptTag}
         ${importmapTag}
