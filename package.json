@@ -1,6 +1,6 @@
 {
   "name": "vite-plugin-static-filehash",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "description": "A Vite plugin that tries to keep the hash of a single file unchanged",
   "type": "module",
   "exports": {
@@ -39,6 +39,7 @@
     "vite": "^5.4.8"
   },
   "dependencies": {
+    "es-module-shims": "^1.10.0",
     "magic-string": "^0.30.11"
   }
 }

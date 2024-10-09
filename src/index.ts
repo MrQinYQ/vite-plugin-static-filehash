@@ -1,4 +1,6 @@
 import type { Plugin, ResolvedConfig } from 'vite';
+import fs from 'fs';
+import path from 'path';
 import MagicString from 'magic-string';
 
 type ResolveModulePreloadDependenciesFn = (filename: string, deps: string[], context: {
@@ -54,6 +56,7 @@ export function staticFilehashPlugin(pluginConfig?: PluginConfig): Plugin {
   let importMapCode: string;
   let fileHashFile: string;
   let fileHashCode: string;
+  let esmoduleshims: string;
   const resolevefunction: ResolveModulePreloadDependenciesFn = (filename, deps, context) => {
 
     const name = filename.substring(assetsDir.length + 1);
@@ -141,39 +144,38 @@ export function staticFilehashPlugin(pluginConfig?: PluginConfig): Plugin {
     },
     renderChunk(code, chunk) {
 
-      // if (localConfig.build.sourcemap) {
-      //   const magicString = new MagicString(code);
-      //   const importRegex = /import\s+.*?\s+from\s+['"](.+?)['"]/g;
-      //   let match;
-      //   while ((match = importRegex.exec(code)) !== null) {
-      //     const fullMatch = match[0];
-      //     const filePath = match[1];
+      if (localConfig.build.sourcemap) {
+        const magicString = new MagicString(code);
+        const importRegex = /import\s+.*?\s+from\s+['"](.+?)['"]/g;
+        let match;
+        while ((match = importRegex.exec(code)) !== null) {
+          const fullMatch = match[0];
+          const filePath = match[1];
 
-      //     // 去掉路径和扩展名，提取文件名
-      //     const fileName = filePath.replace(/^.*[\\/]/, '').replace(/\.[^/.]+$/, '').replace(/-!~\{.*?\}~/, '');
+          // 去掉路径和扩展名，提取文件名
+          const fileName = filePath.replace(/^.*[\\/]/, '').replace(/\.[^/.]+$/, '').replace(/-!~\{.*?\}~/, '');
 
-      //     // 使用 MagicString 进行替换
-      //     magicString.overwrite(match.index, match.index + fullMatch.length, fullMatch.replace(filePath, fileName));
-      //   }
+          // 使用 MagicString 进行替换
+          magicString.overwrite(match.index, match.index + fullMatch.length, fullMatch.replace(filePath, fileName));
+        }
 
-      //   // 处理动态 import 替换
-      //   const dynamicImportRegex = /import\((['"`])(.+?)\1\)/g;
-      //   while ((match = dynamicImportRegex.exec(code)) !== null) {
-      //     const fullMatch = match[0];
-      //     const p2 = match[2];
+        // 处理动态 import 替换
+        const dynamicImportRegex = /import\((['"`])(.+?)\1\)/g;
+        while ((match = dynamicImportRegex.exec(code)) !== null) {
+          const fullMatch = match[0];
+          const p2 = match[2];
 
-      //     // 去掉路径和扩展名，提取文件名
-      //     const fileName = p2.replace(/^.*[\\/]/, '').replace(/\.[^/.]+$/, '').replace(/-!~\{.*?\}~/, '');
+          // 去掉路径和扩展名，提取文件名
+          const fileName = p2.replace(/^.*[\\/]/, '').replace(/\.[^/.]+$/, '').replace(/-!~\{.*?\}~/, '');
 
-      //     // 使用 MagicString 进行替换
-      //     magicString.overwrite(match.index, match.index + fullMatch.length, fullMatch.replace(p2, fileName));
-      //   }
-      //   return {
-      //     code: magicString.toString(),
-      //     map: magicString.generateMap({ hires: 'boundary' })
-      //   }
-      // } else {
-        // 看来不需要处理这里的sourcemap
+          // 使用 MagicString 进行替换
+          magicString.overwrite(match.index, match.index + fullMatch.length, fullMatch.replace(p2, fileName));
+        }
+        return {
+          code: magicString.toString(),
+          map: magicString.generateMap({ hires: 'boundary' })
+        }
+      } else {
         let result = code.replace(/import\s+.*?\s+from\s+['"](.+?)['"]/g, (match, filePath) => {
           // 去掉路径和扩展名，提取文件名
           const fileName = filePath.replace(/^.*[\\/]/, '').replace(/\.[^/.]+$/, '').replace(/-!~\{.*?\}~/, '');
@@ -188,7 +190,7 @@ export function staticFilehashPlugin(pluginConfig?: PluginConfig): Plugin {
         });
   
         return result;
-      // }
+      }
 
     },
     generateBundle(options, bundle) {
@@ -239,10 +241,19 @@ export function staticFilehashPlugin(pluginConfig?: PluginConfig): Plugin {
       fileHashFile = this.getFileName(fileHashFile);
       importMapCode = importMapStr;
       fileHashCode = fileHashStr;
+
+      esmoduleshims = this.emitFile({
+        type: 'asset',
+        name: `es-module-shims.js`,
+        source: fs.readFileSync(path.join(__dirname, './node_modules/es-module-shims/dist/es-module-shims.js'), 'utf-8'),
+      });
+
+      esmoduleshims = this.getFileName(esmoduleshims);
     },
     transformIndexHtml(html, ctx) {
       let result = html.replace('<head>', `<head>
-        <script type="importmap">${importMapCode}</script>
+    <script async crossorigin src="${base}${esmoduleshims}"></script>
+    <script type="importmap">${importMapCode}</script>
               `);
       if (pluginConfig?.emitFile) {
         return result.replace('<head>', `<head>
