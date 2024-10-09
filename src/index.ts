@@ -1,4 +1,5 @@
-import type { Plugin } from 'vite';
+import type { Plugin, ResolvedConfig } from 'vite';
+import MagicString from 'magic-string';
 
 type ResolveModulePreloadDependenciesFn = (filename: string, deps: string[], context: {
   hostId: string;
@@ -37,13 +38,22 @@ interface OutputChunk extends RenderedChunk {
 	preliminaryFileName: string;
 }
 
+interface PluginConfig {
+  emitFile?: boolean;
+}
 
-export function staticFilehashPlugin(): Plugin {
+
+export function staticFilehashPlugin(pluginConfig?: PluginConfig): Plugin {
   const localImportMap: { [key: string]: string } = {};
   const invertedImportMap: { [key: string]: string } = {};
   const invertedChunkMap: { [key: string]: OutputChunk } = {};
   let base = '';
   let assetsDir = '';
+  let localConfig: ResolvedConfig;
+  let importMapFile: string;
+  let importMapCode: string;
+  let fileHashFile: string;
+  let fileHashCode: string;
   const resolevefunction: ResolveModulePreloadDependenciesFn = (filename, deps, context) => {
 
     const name = filename.substring(assetsDir.length + 1);
@@ -127,23 +137,59 @@ export function staticFilehashPlugin(): Plugin {
     configResolved(config) {
       base = config.base;
       assetsDir = config.build.assetsDir;
+      localConfig = config;
     },
     renderChunk(code, chunk) {
 
-      let result = code.replace(/import\s+.*?\s+from\s+['"](.+?)['"]/g, (match, filePath) => {
-        // 去掉路径和扩展名，提取文件名
-        const fileName = filePath.replace(/^.*[\\/]/, '').replace(/\.[^/.]+$/, '').replace(/-!~\{.*?\}~/, '');
-        // 将 import 路径替换为文件名
-        return match.replace(filePath, fileName);
-      });
+      // if (localConfig.build.sourcemap) {
+      //   const magicString = new MagicString(code);
+      //   const importRegex = /import\s+.*?\s+from\s+['"](.+?)['"]/g;
+      //   let match;
+      //   while ((match = importRegex.exec(code)) !== null) {
+      //     const fullMatch = match[0];
+      //     const filePath = match[1];
 
-      result = result.replace(/import\((['"`])(.+?)\1\)/g, (match, p1, p2) => {
-        // 对路径进行动态处理或替换
-        const fileName = p2.replace(/^.*[\\/]/, '').replace(/\.[^/.]+$/, '').replace(/-!~\{.*?\}~/, '');
-        return match.replace(p2, fileName);
-      });
+      //     // 去掉路径和扩展名，提取文件名
+      //     const fileName = filePath.replace(/^.*[\\/]/, '').replace(/\.[^/.]+$/, '').replace(/-!~\{.*?\}~/, '');
 
-      return result;
+      //     // 使用 MagicString 进行替换
+      //     magicString.overwrite(match.index, match.index + fullMatch.length, fullMatch.replace(filePath, fileName));
+      //   }
+
+      //   // 处理动态 import 替换
+      //   const dynamicImportRegex = /import\((['"`])(.+?)\1\)/g;
+      //   while ((match = dynamicImportRegex.exec(code)) !== null) {
+      //     const fullMatch = match[0];
+      //     const p2 = match[2];
+
+      //     // 去掉路径和扩展名，提取文件名
+      //     const fileName = p2.replace(/^.*[\\/]/, '').replace(/\.[^/.]+$/, '').replace(/-!~\{.*?\}~/, '');
+
+      //     // 使用 MagicString 进行替换
+      //     magicString.overwrite(match.index, match.index + fullMatch.length, fullMatch.replace(p2, fileName));
+      //   }
+      //   return {
+      //     code: magicString.toString(),
+      //     map: magicString.generateMap({ hires: 'boundary' })
+      //   }
+      // } else {
+        // 看来不需要处理这里的sourcemap
+        let result = code.replace(/import\s+.*?\s+from\s+['"](.+?)['"]/g, (match, filePath) => {
+          // 去掉路径和扩展名，提取文件名
+          const fileName = filePath.replace(/^.*[\\/]/, '').replace(/\.[^/.]+$/, '').replace(/-!~\{.*?\}~/, '');
+          // 将 import 路径替换为文件名
+          return match.replace(filePath, fileName);
+        });
+  
+        result = result.replace(/import\((['"`])(.+?)\1\)/g, (match, p1, p2) => {
+          // 对路径进行动态处理或替换
+          const fileName = p2.replace(/^.*[\\/]/, '').replace(/\.[^/.]+$/, '').replace(/-!~\{.*?\}~/, '');
+          return match.replace(p2, fileName);
+        });
+  
+        return result;
+      // }
+
     },
     generateBundle(options, bundle) {
       Object.keys(bundle).forEach(id => {
@@ -164,33 +210,49 @@ export function staticFilehashPlugin(): Plugin {
 
         }
       });
-
-    },
-    transformIndexHtml(html, ctx) {
       const fileHashes = Object.keys(localImportMap).filter(key => !key.endsWith('.css')).reduce((acc, key) => {
         (acc as any)[key] = base + localImportMap[key];
         return acc;
       }, {});
-      
-      const importmapTag = `<script type="importmap">
-        {
-          "imports": ${JSON.stringify(fileHashes, undefined, 4)}
-        }
-      </script>`
-
+      const importMapStr = `
+{
+    "imports": ${JSON.stringify(fileHashes, undefined, 8)}
+}
+      `
       const fileHashes2 = Object.keys(localImportMap).reduce((acc, key) => {
         (acc as any)[key] = localImportMap[key].substring(assetsDir.length + 1);
         return acc;
       }, {});
+      const fileHashStr = `window.fileHashes = ${JSON.stringify(fileHashes2, undefined, 4)}`
 
-      const scriptTag = `<script>
-        window.fileHashes = ${JSON.stringify(fileHashes2, undefined, 4)};
-      </script>`;
-
-      return html.replace('<head>', `<head>
-        ${scriptTag}
-        ${importmapTag}
-        `);
+      importMapFile = this.emitFile({
+        source: importMapStr,
+        name: 'importmap.json',
+        type: 'asset'
+      });
+      importMapFile = this.getFileName(importMapFile);
+      fileHashFile = this.emitFile({
+        source: fileHashStr,
+        name: 'fileHashs.js',
+        type: 'asset'
+      })
+      fileHashFile = this.getFileName(fileHashFile);
+      importMapCode = importMapStr;
+      fileHashCode = fileHashStr;
+    },
+    transformIndexHtml(html, ctx) {
+      let result = html.replace('<head>', `<head>
+        <script type="importmap">${importMapCode}</script>
+              `);
+      if (pluginConfig?.emitFile) {
+        return result.replace('<head>', `<head>
+    <script src="${localConfig.base}${fileHashFile}"></script>
+          `);
+      } else {
+        return result.replace('<head>', `<head>
+    <script>${fileHashCode}</script>
+          `);
+      }
     }
   };
 }
