@@ -227,18 +227,21 @@ export function staticFilehashPlugin(pluginConfig?: PluginConfig): Plugin {
       }, {});
       const fileHashStr = `window.fileHashes = ${JSON.stringify(fileHashes2, undefined, 4)}`
 
-      importMapFile = this.emitFile({
-        source: importMapStr,
-        name: 'importmap.json',
-        type: 'asset'
-      });
-      importMapFile = this.getFileName(importMapFile);
-      fileHashFile = this.emitFile({
-        source: fileHashStr,
-        name: 'fileHashs.js',
-        type: 'asset'
-      })
-      fileHashFile = this.getFileName(fileHashFile);
+      if (pluginConfig?.emitFile) {
+        importMapFile = this.emitFile({
+          source: importMapStr,
+          name: 'importmap.json',
+          type: 'asset'
+        });
+        importMapFile = this.getFileName(importMapFile);
+        fileHashFile = this.emitFile({
+          source: fileHashStr,
+          name: 'fileHashs.js',
+          type: 'asset'
+        })
+        fileHashFile = this.getFileName(fileHashFile);
+      }
+
       importMapCode = importMapStr;
       fileHashCode = fileHashStr;
 
