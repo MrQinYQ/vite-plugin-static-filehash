@@ -248,7 +248,7 @@ export function staticFilehashPlugin(pluginConfig?: PluginConfig): Plugin {
       esmoduleshims = this.emitFile({
         type: 'asset',
         name: `es-module-shims.js`,
-        source: fs.readFileSync(path.join(__dirname, './node_modules/es-module-shims/dist/es-module-shims.js'), 'utf-8'),
+        source: fs.readFileSync(path.resolve('./node_modules/es-module-shims/dist/es-module-shims.js'), 'utf-8'),
       });
 
       esmoduleshims = this.getFileName(esmoduleshims);
