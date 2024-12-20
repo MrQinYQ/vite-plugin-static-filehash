@@ -164,7 +164,10 @@ export function staticFilehashPlugin(pluginConfig?: PluginConfig): Plugin {
         while ((match = dynamicImportRegex.exec(code)) !== null) {
           const fullMatch = match[0];
           const p2 = match[2];
-
+          console.log('import: ', p2);
+          if (p2.includes('-legacy-')) {
+            continue;
+          }
           // 去掉路径和扩展名，提取文件名
           const fileName = p2.replace(/^.*[\\/]/, '').replace(/\.[^/.]+$/, '').replace(/-!~\{.*?\}~/, '');
 
