@@ -42,6 +42,7 @@ interface OutputChunk extends RenderedChunk {
 
 interface PluginConfig {
   emitFile?: boolean;
+  replaceString?: string;
 }
 
 
@@ -257,18 +258,27 @@ export function staticFilehashPlugin(pluginConfig?: PluginConfig): Plugin {
       esmoduleshims = this.getFileName(esmoduleshims);
     },
     transformIndexHtml(html, ctx) {
-      let result = html.replace('<head>', `<head>
-    <script async crossorigin src="${base}${esmoduleshims}"></script>
-    <script type="importmap">${importMapCode}</script>
-              `);
-      if (pluginConfig?.emitFile) {
-        return result.replace('<head>', `<head>
-    <script src="${localConfig.base}${fileHashFile}"></script>
-          `);
+      if (pluginConfig?.replaceString) {
+        let result = html.replace(pluginConfig.replaceString, `
+          ${pluginConfig?.emitFile ? `<script src="${localConfig.base}${fileHashFile}"></script>` : `<script>${fileHashCode}</script>`}
+      <script async crossorigin src="${base}${esmoduleshims}"></script>
+      <script type="importmap">${importMapCode}</script>
+                    `);
+        return result;
       } else {
-        return result.replace('<head>', `<head>
-    <script>${fileHashCode}</script>
-          `);
+        let result = html.replace('<head>', `<head>
+      <script async crossorigin src="${base}${esmoduleshims}"></script>
+      <script type="importmap">${importMapCode}</script>
+                `);
+        if (pluginConfig?.emitFile) {
+          return result.replace('<head>', `<head>
+      <script src="${localConfig.base}${fileHashFile}"></script>
+            `);
+        } else {
+          return result.replace('<head>', `<head>
+      <script>${fileHashCode}</script>
+            `);
+        }
       }
     }
   };
